@@ -1,0 +1,68 @@
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(gganimate)
+library(ggplot2)
+library(tidyverse)
+library(magrittr) # needs to be run every time you start R and want to use %>%
+# Get the data file
+can_ps_data=read.csv("C:/Users/Tressy/Desktop/Semester 2/Data Visualization/Group Project/Datasets/Main_data_postsecondary.csv",header=TRUE,sep=',')
+#check the type of data
+class(can_ps_data)
+#CHECK THE DIMENSION
+dim(can_ps_data)
+#GET THE HEADER NAMES
+names(can_ps_data)
+#get the structure of data
+glimpse(can_ps_data)
+#select the needed columns and rows only
+can_intl_data=subset(can_ps_data,Status.of.student.in.Canada=="International Students" & Gender=='Total, gender'& Institution.type=='Total, institution type' & GEO=='Canada')
+can_intl_data=separate(data = can_intl_data, col = ï..REF_DATE, into = c("S_Yr", "E_Yr"), sep = "\\/")
+can_intl_data=separate(data = can_intl_data, col = Country.of.citizenship, into = c("Country", "Region_Code"), sep = "\\[")
+can_intl_data$Region_Code=substr(can_intl_data$Region_Code,1,nchar(can_intl_data$Region_Code)-1)
+can_intl_data=subset(can_intl_data,as.numeric(Region_Code)>=10000)
+#sORT 
+can_intl_data=subset(can_intl_data,!is.na(VALUE))
+can_intl_fnl=can_intl_fnl[order(can_intl_fnl$S_Yr,can_intl_fnl$VALUE),]
+can_top_10=data.frame(top_n(group_by(can_intl_fnl,S_Yr),n=10,wt=VALUE))
+head(can_top_10,n=22)
+#add new field RANk
+can_top_10=mutate(can_top_10,rank=(row_number()%%10))
+can_top_10=mutate(can_top_10,Yr=S_Yr)
+can_top_10$rank[can_top_10$rank=='0']='10'
+can_top_10$rank=as.numeric(can_top_10$rank)
+can_top_10$S_Yr=as.Date(ISOdate(can_top_10$S_Yr,1,1))
+can_top_10$E_Yr=as.Date(ISOdate(can_top_10$E_Yr,1,1))
+glimpse(can_top_10)
+head(can_top_10,n=22)
+tail(can_top_10,20)
+#Plot the ranks
+p <- can_top_10 %>%
+  ggplot(aes(x = rank,y = VALUE, group = Country)) +
+  geom_tile(aes(y = VALUE / 2, height = VALUE, fill = Country), width = 0.9) +
+  geom_text(aes(y = 0, label = paste(Country, " ")), hjust = 1,vjust = 0.2, colour = "brown", fontface = "bold") +
+  geom_text(aes(label = scales::comma(VALUE)), hjust = 0, colour = "brown",fontface = "bold") +
+  coord_flip(clip="off") +
+  theme(panel.background=element_blank(),
+        plot.title=element_text(size=18, hjust=0.5, face="bold", colour="grey", vjust=-1),
+        plot.subtitle=element_text(size=9, hjust=0.5, face="italic", color="grey"),
+        plot.background=element_blank(),
+        plot.margin = margin(2,2,2,4,"cm"),
+        legend.position="none",
+        axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank()) +
+  # gganimate code to transition by year:
+  transition_time(S_Yr) +
+  ease_aes('linear') +
+  labs(title='International Student enrolments in Canada for Year {format(frame_time, "%Y")}',
+       subtitle='Top 10 Countries by total Post Secondary International Student enrolments in Canada',
+       caption='First of Referenced academic Year.Source: Statistics Canada. Plotted by Tressy Thomas')
+
+animate(p, nframes = 300, fps = 15, end_pause = 100, width = 800, height = 480,renderer = gifski_renderer("top10canadaf.gif"))
+
+
+
