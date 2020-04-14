@@ -1,0 +1,199 @@
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(compare)
+library(ggplot2)
+# Get the data file
+raw_movie_data=read.csv("https://raw.githubusercontent.com/tressythomas/R_Learn/master/movie_dataset.csv",header=TRUE,sep=',')
+#check the type of data, dimensions, structure and summary
+class(raw_movie_data)
+dim(raw_movie_data)
+names(raw_movie_data)
+glimpse(raw_movie_data)
+summary(raw_movie_data)
+#Rearrange the columns, drop unwanted columns - actor_1_facebook_likes ...facenumber_in_poster
+field_order=c("movie_title","title_year","duration","language","country","color","budget","gross","genres","content_rating","director_name","actor_1_name","actor_2_name","actor_3_name","aspect_ratio","plot_keywords","num_critic_for_reviews","num_user_for_reviews","num_voted_users","imdb_score","movie_facebook_likes","cast_total_facebook_likes","director_facebook_likes","movie_imdb_link")
+movie_data_1=raw_movie_data[,field_order]
+
+#view first 6 rows
+head(movie_data_1)
+
+#Remove duplicates
+movie_data_2=distinct(movie_data_1) 
+dim(movie_data_2)
+
+#Remove rows with more than 10 columns with NA
+#movie_data_2w=movie_data_2[which(rowMeans(!is.na(movie_data_2)) > 0.3), ]
+#dim(movie_data_2w)
+
+#check the NA fields in data frame
+summary(is.na(movie_data_2))
+
+#check if there is any blanks or NA for movie title
+movie_data_2[is.na(movie_data_2$movie_title),]
+
+
+#Clean the movie_title field. Trim trailing whitespace and Remove the last character. No NA. 
+movie_data_2$movie_title=as.character(movie_data_2$movie_title)
+movie_data_2$movie_title=str_trim(movie_data_2$movie_title,"both")
+movie_data_2$movie_title=substr(movie_data_2$movie_title,1,nchar(movie_data_2$movie_title)-1)
+
+mva=movie_data_2[!duplicated(movie_data_2[c("movie_title","title_year","language"), ])]
+#change the special characters
+movie_data_2$movie_title=factor(iconv(movie_data_2$movie_title,from = 'UTF-8', to = 'ASCII//TRANSLIT'))
+
+#-------Clean up Movie Year-------#
+#histogram
+hist(movie_data_2$title_year,
+     main='Movie Year Histogram',
+     xlab='Movie Year',
+     xlim=c(1920,2020),
+     ylim=c(0,1300),
+     col='lightblue',
+     breaks=20)
+#Check the movies with year NOT present.
+subset(movie_data_2,is.na(movie_data_2$title_year))
+
+#Replace the NA year fields with default 1888 = Year Not Available. 
+movie_data_2$title_year[is.na(movie_data_2$title_year)]=1888
+
+movie_data_3=data.frame(movie_data_2)
+
+#-------Clean up Movie duration ----------#
+#boxplot of duration
+boxplot(movie_data_3$duration,
+        main='Movie Duration Boxplot',
+        xlab='Movie duration')
+#view outlier and NA rows
+summary(movie_data_2$duration)
+movie_data_3$duration=as.integer(movie_data_3$duration)
+dim(subset(movie_data_3,movie_data_3$duration < 10 | movie_data_3$duration > 300 | (is.na(movie_data_3$duration))))
+
+#Replace the rows with NA duration to median and round the value for 10 and 300 for < 10 or > 300
+movie_data_3$duration = ifelse(movie_data_3$duration < 10 , 10, movie_data_3$duration)
+movie_data_3$duration = ifelse(movie_data_3$duration > 300 , 300, movie_data_3$duration)
+movie_data_3$duration = ifelse(is.na(movie_data_3$duration), median(movie_data_3$duration,na.rm=TRUE), movie_data_3$duration)
+summary(movie_data_3$duration)
+
+movie_data_4=data.frame(movie_data_3)
+
+#------- Clean up Language ---------------#
+ggplot(data.frame(movie_data_4), aes(x=language)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+summary(movie_data_4$language)
+movie_data_4$language=str_trim(movie_data_2$language,"both")
+subset(movie_data_4,movie_data_4$language=="")
+#movie_data_2$language = ifelse(movie_data_2$language='' | movie_data_2$country = 'USA' , 'English', movie_data_2$language)
+#Replace blank language fields with English
+movie_data_4$language = sub("^$","English",movie_data_4$language)
+movie_data_4$language = factor(movie_data_4$language)
+summary(movie_data_4$language)
+
+movie_data_5=data.frame(movie_data_4)
+
+##-------Country----------#
+summary(movie_data_5$country)
+ggplot(data.frame(movie_data_5), aes(x=country)) +
+  geom_bar() +
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+#Drop the rows with country not present... No relevant info present in other columns also.
+movie_data_5=movie_data_5[!(movie_data_3$country == ""),]
+summary(movie_data_5$country)
+
+movie_data_6=data.frame(movie_data_5)
+
+##------- Clean Up Color----------#
+summary(movie_data_6$color)
+movie_data_6$color=str_trim(movie_data_6$color,"both")
+movie_data_6[(movie_data_6$color == ""),]
+#Replace blanks with color
+movie_data_6$color = sub("^$","Color",movie_data_6$color)
+movie_data_6$color = factor(movie_data_6$color)
+summary(movie_data_6$color)
+
+movie_data_7=data.frame(movie_data_6)
+
+###------- Clean up Budget and gross----------#
+dim(movie_data_7[(is.na(movie_data_7$budget)) & (is.na(movie_data_7$gross)),])
+plot(movie_data_4$budget,movie_data_4$gross,
+     xlab="budget", ylab = "gross", pch=90,
+     main="Budget Gross Plot")
+boxplot(movie_data_4$gross,
+        xlab="gross",
+        main="gross Box Plot")
+#Replace NA with 0 
+movie_data_7$budget=ifelse(is.na(movie_data_7$budget),0,movie_data_7$budget)
+movie_data_7$gross=ifelse(is.na(movie_data_7$gross),0,movie_data_7$gross)
+#Remove outlier
+movie_data_7=subset(movie_data_7,movie_data_7$budget < 12215500000)
+
+movie_data_8=data.frame(movie_data_7)
+
+##------- Clean up Genre ------- # No cleaning
+summary(movie_data_8$genres)
+
+##------- Clean up Content Rating
+summary(movie_data_8$content_rating)
+class(movie_data_8$content_rating)
+movie_data_8$content_rating=sub("^$","Not Rated",movie_data_8$content_rating)
+movie_data_8$content_rating=factor(movie_data_8$content_rating)
+
+movie_data_9=data.frame(movie_data_8)
+
+summary(movie_data_9)
+
+#--------clean up Director and actor names, replace blanks with Unknown
+movie_data_9$director_name=sub("^$","Unknown",movie_data_9$director_name)
+movie_data_9$director_name=factor(iconv(movie_data_9$director_name, from = 'UTF-8', to = 'ASCII//TRANSLIT'))
+
+#concatenate actors to a single column
+movie_data_9$actors=paste(movie_data_9$actor_1_name,movie_data_9$actor_2_name,movie_data_9$actor_3_name,sep='  ')
+movie_data_9$actors=str_trim(movie_data_9$actors,"right")
+movie_data_9$actors=sub("  ", "|", movie_data_9$actors)
+movie_data_9$actors=sub("  ", "|", movie_data_9$actors)
+movie_data_9$actors=sub("^$","Unknown",movie_data_9$actors)
+movie_data_9$actors=factor(iconv(movie_data_9$actors, from = 'UTF-8', to = 'ASCII//TRANSLIT'))
+head(movie_data_9)
+
+movie_data_10=data.frame(movie_data_9)
+
+#aspect ratio
+hist(movie_data_10$aspect_ratio,main="Aspect Ratio Histogram")
+boxplot(movie_data_10$aspect_ratio,main="Aspect Ratio boxplot")
+#replace 16 with 1.6 and NA with median
+movie_data_10$aspect_ratio=ifelse(movie_data_10$aspect_ratio==16,1.6,movie_data_10$aspect_ratio)
+movie_data_10$aspect_ratio=ifelse(is.na(movie_data_10$aspect_ratio),1.85,movie_data_10$aspect_ratio)
+#plot keywords- can be empty
+#num_critic_for_reviews, num_user_for_reviews
+hist(movie_data_4$num_critic_for_reviews)
+#replace na with 0
+movie_data_10$num_critic_for_reviews=ifelse(is.na(movie_data_10$num_critic_for_reviews),0,movie_data_10$num_critic_for_reviews)
+movie_data_10$num_user_for_reviews=ifelse(is.na(movie_data_10$num_user_for_reviews),0,movie_data_10$num_user_for_reviews)
+#format imbd score
+movie_data_10$imdb_score=as.numeric(movie_data_10$imdb_score)
+#movie_data_10$imdb_score=format(round(movie_data_10$imdb_score, 1), nsmall = 1)
+#movie_facebook_likes, cast_total_facebook_likes - no change
+
+#director_facebook_likes
+dim(movie_data_10[(is.na(movie_data_10$director_facebook_likes)),])
+movie_data_10$director_facebook_likes=ifelse(is.na(movie_data_10$director_facebook_likes),0,movie_data_10$director_facebook_likes)
+
+#Rename Column names
+summary(is.na(movie_data_10))
+names(movie_data_10)
+field_order=c("movie_title","title_year","duration","language","country","color","budget","gross","genres","content_rating","director_name","actors","aspect_ratio","plot_keywords","num_critic_for_reviews","num_user_for_reviews","imdb_score","movie_facebook_likes","cast_total_facebook_likes","director_facebook_likes","movie_imdb_link")
+movie_data_work=movie_data_10[,field_order]
+dim(movie_data_10)
+dim(movie_data_work)
+names(movie_data_work)
+col_names=c("movie_title","movie_release_year","movie_runtime","language","country","color","budget","gross","genres","content_rating","director_name","actors","aspect_ratio","plot_keywords","critic_reviews","user_reviews","imdb_score","movie_facebook_likes","cast_total_facebook_likes","director_facebook_likes","movie_imdb_link")
+colnames(movie_data_work)=col_names
+head(movie_data_work)
+summary(movie_data_work)
+movie_data_final=data.frame(movie_data_work)
+summary(is.na(movie_data_final))
+dim(movie_data_final)
+
+write.csv(movie_data_final,'movie_dataset_final.csv')
