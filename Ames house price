@@ -1,0 +1,56 @@
+#check with  lm cv=10
+#Linear Regression 
+#2346 samples
+#  46 predictor
+#Train:
+#  RMSE      Rsquared   MAE     
+#  29918.51  0.8569286  18859.15
+library(AmesHousing)
+data("ames_raw")
+ames.ds=ames_raw
+dim(ames.ds)
+str(ames.ds)
+ames.ds=data.frame(ames.ds)
+ 
+#Identify missing values
+sum(is.na(ames.ds))
+miss.val.col=sapply(colnames(ames.ds),function(x) sum(is.na(ames.ds[,x]))) #by columns
+barplot(miss.val.col[miss.val.col>nrow(ames.ds)/10],horiz=FALSE)
+rm.col=which(miss.val.col>nrow(ames.ds)/2)  
+missing_plot(ames.ds)
+vis_miss(ames.ds,warn_large_data=FALSE)
+#remove columns with more than 50% missing values
+ames.ds=ames.ds[,-rm.col]
+#missing value imputation using knn
+ames.df=kNN(ames.ds,addRF = TRUE,variable = colnames(ames.ds),k=5)[,1:ncol(ames.ds)]
+#feature selection using correlation 
+ames.d=lapply(ames.df, function(x) {
+  if(is.factor(x)) as.numeric(as.character(x)) else x
+})
+ames.d=lapply(ames.d, function(x) {
+  if(is.character(x)) as.numeric(as.factor(x)) else x
+})
+ames.d=data.frame(ames.d)
+T1=makeRegrTask(data =ames.d , target = "SalePrice")
+feature_val = generateFilterValuesData(T1,method = "FSelectorRcpp_information.gain",equal=TRUE)
+filtered.task = filterFeatures(T1, method = "FSelectorRcpp_information.gain", perc = 0.6,equal=TRUE)
+filt_features=as.vector((getTaskFeatureNames(filtered.task)))
+fnl_ds=ames.d[,c(filt_features,"SalePrice")]
+#Splitting dataset
+train_index=createDataPartition(fnl_ds$SalePrice,p=0.8,list=FALSE)
+
+train_data=fnl_ds[train_index,filt_features]
+train_price=fnl_ds$SalePrice[train_index]
+test_data=fnl_ds[-train_index,filt_features]
+test_price=fnl_ds$SalePrice[-train_index]
+#Check distribution of data 
+
+linear.model=train(train_data,train_price,
+                   method="lm",
+                   trControl = trainControl(method = "cv",number=10))
+summary(linear.model)
+plot(linear.model$results)                 
+p.test=predict(linear.model,test_data)
+
+rmse=sqrt(mean(p.test-test_price)^2)
+    
